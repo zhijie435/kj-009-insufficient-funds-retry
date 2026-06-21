@@ -36,6 +36,11 @@ const routes = [
                 name: 'Recharge',
                 component: () => import('../views/Recharge.vue'),
             },
+            {
+                path: 'balance-retries',
+                name: 'BalanceRetries',
+                component: () => import('../views/balanceRetry/Index.vue'),
+            },
         ],
     },
 ]

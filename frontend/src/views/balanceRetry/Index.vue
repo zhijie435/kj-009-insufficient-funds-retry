@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { ElTable, ElTableColumn, ElButton, ElMessage, ElPopconfirm } from 'element-plus'
 import { RefreshRight, Close } from '@element-plus/icons-vue'
-import request from '../../utils/request'
+import api from '../../api/index'
 
 const balanceRetryList = ref([])
 
@@ -25,22 +25,16 @@ const formatRetries = (data) => {
 
 const getBalanceRetryList = async () => {
   try {
-    const res = await request.get('/balance-retries')
-    balanceRetryList.value = formatRetries(res.data)
+    const res = await api.get('/balance-retries')
+    balanceRetryList.value = formatRetries(res.data.data)
   } catch (error) {
-    balanceRetryList.value = [
-      { id: 1, orderNo: 'ORD20240101002', orderId: 2, needAmount: 199.00, currentBalance: 150.00, retryCount: 2, maxRetry: 5, status: '待重试', statusCode: 0, nextRetryTime: '2024-01-01 16:00:00' },
-      { id: 2, orderNo: 'ORD20240101004', orderId: 4, needAmount: 59.00, currentBalance: 30.00, retryCount: 3, maxRetry: 5, status: '已取消', statusCode: 4, nextRetryTime: '-' },
-      { id: 3, orderNo: 'ORD20240101006', orderId: 6, needAmount: 299.00, currentBalance: 350.00, retryCount: 1, maxRetry: 5, status: '重试中', statusCode: 1, nextRetryTime: '2024-01-01 17:30:00' },
-      { id: 4, orderNo: 'ORD20240101007', orderId: 7, needAmount: 89.00, currentBalance: 50.00, retryCount: 0, maxRetry: 5, status: '待重试', statusCode: 0, nextRetryTime: '2024-01-01 18:00:00' },
-      { id: 5, orderNo: 'ORD20240101008', orderId: 8, needAmount: 599.00, currentBalance: 600.00, retryCount: 0, maxRetry: 5, status: '成功', statusCode: 2, nextRetryTime: '-' }
-    ]
+    balanceRetryList.value = []
   }
 }
 
 const handleManualRetry = async (row) => {
   try {
-    await request.post(`/balance-retries/${row.id}/retry`)
+    await api.post(`/balance-retries/${row.id}/retry`)
     ElMessage.success('已触发手动重试')
     getBalanceRetryList()
   } catch (error) {
@@ -55,7 +49,7 @@ const handleManualRetry = async (row) => {
 
 const handleCancel = async (row) => {
   try {
-    await request.post(`/balance-retries/${row.id}/cancel`)
+    await api.post(`/balance-retries/${row.id}/cancel`)
     ElMessage.success('已取消重试')
     getBalanceRetryList()
   } catch (error) {
@@ -91,12 +85,12 @@ onMounted(() => {
       <el-table-column prop="orderNo" label="关联订单" min-width="180" />
       <el-table-column prop="needAmount" label="需要金额" min-width="120">
         <template #default="{ row }">
-          ¥{{ Number(row.needAmount).toFixed(2) }}
+          ¥{{ (Number(row.needAmount) / 100).toFixed(2) }}
         </template>
       </el-table-column>
       <el-table-column prop="currentBalance" label="当前余额" min-width="120">
         <template #default="{ row }">
-          ¥{{ Number(row.currentBalance).toFixed(2) }}
+          ¥{{ (Number(row.currentBalance) / 100).toFixed(2) }}
         </template>
       </el-table-column>
       <el-table-column label="重试进度" min-width="120">

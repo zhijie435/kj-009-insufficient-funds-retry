@@ -43,7 +43,7 @@ class BalanceRetryController extends Controller
             'max_retry' => 'nullable|integer|min:1',
         ]);
 
-        $validated['current_balance'] = \App\Models\User::find($validated['user_id'])->balance;
+        $validated['current_balance'] = \App\Models\Wallet::where('user_id', $validated['user_id'])->first()->balance;
         $validated['retry_count'] = 0;
         $validated['status'] = 0;
         $validated['next_retry_at'] = now()->addMinutes(5);
@@ -111,7 +111,7 @@ class BalanceRetryController extends Controller
             'fail_reason' => '手动取消',
         ]);
 
-        $balanceRetry->order->update(['status' => 3]);
+        $balanceRetry->order->update(['status' => 'failed']);
 
         return response()->json(['message' => '已取消重试']);
     }

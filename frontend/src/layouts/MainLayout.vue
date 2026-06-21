@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { RefreshRight } from '@element-plus/icons-vue'
 import { authApi, walletApi } from '../api/modules'
 
 const router = useRouter()
@@ -72,6 +73,10 @@ const activeMenu = ref('/')
         <el-menu-item index="/recharge">
           <el-icon><CreditCard /></el-icon>
           <span>充值中心</span>
+        </el-menu-item>
+        <el-menu-item index="/balance-retries">
+          <el-icon><RefreshRight /></el-icon>
+          <span>余额重试管理</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
