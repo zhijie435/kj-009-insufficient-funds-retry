@@ -10,10 +10,12 @@ const formatOrders = (data) => {
   return (data.data || data || []).map(item => ({
     id: item.id,
     orderNo: item.order_no,
+    title: item.title,
     amount: item.amount,
     status: item.status_text,
     statusCode: item.status,
     retryCount: item.retry_count,
+    maxRetries: item.max_retries,
     createdAt: item.created_at
   }))
 }
@@ -35,7 +37,7 @@ const getOrderList = async () => {
 
 const handleRetry = async (row) => {
   try {
-    await request.post(`/orders/${row.id}/pay`)
+    await request.post(`/orders/${row.id}/retry`)
     ElMessage.success('重试支付成功')
     getOrderList()
   } catch (error) {
@@ -46,6 +48,16 @@ const handleRetry = async (row) => {
     }
     getOrderList()
   }
+}
+
+const isRetryDisabled = (row) => {
+  if (row.statusCode === 'paid' || row.statusCode === 'failed' || row.statusCode === 'cancelled') {
+    return true
+  }
+  if (row.retryCount !== undefined && row.maxRetries !== undefined) {
+    return row.retryCount >= row.maxRetries
+  }
+  return false
 }
 
 const getStatusType = (status) => {
@@ -68,9 +80,10 @@ onMounted(() => {
     <h2>订单列表</h2>
     <el-table :data="orderList" border style="width: 100%">
       <el-table-column prop="orderNo" label="订单号" min-width="180" />
+      <el-table-column prop="title" label="商品" min-width="180" />
       <el-table-column prop="amount" label="金额" min-width="120">
         <template #default="{ row }">
-          ¥{{ Number(row.amount).toFixed(2) }}
+          ¥{{ (Number(row.amount) / 100).toFixed(2) }}
         </template>
       </el-table-column>
       <el-table-column prop="status" label="状态" min-width="140">
@@ -80,7 +93,11 @@ onMounted(() => {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="retryCount" label="重试次数" min-width="100" />
+      <el-table-column label="重试次数" min-width="100">
+        <template #default="{ row }">
+          {{ row.retryCount }} / {{ row.maxRetries }}
+        </template>
+      </el-table-column>
       <el-table-column label="操作" min-width="120" fixed="right">
         <template #default="{ row }">
           <el-button
@@ -88,7 +105,7 @@ onMounted(() => {
             size="small"
             :icon="RefreshRight"
             @click="handleRetry(row)"
-            :disabled="row.statusCode === 1 || row.statusCode === 3"
+            :disabled="isRetryDisabled(row)"
           >
             重试支付
           </el-button>

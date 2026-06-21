@@ -53,7 +53,7 @@ onMounted(() => {
       <el-table-column prop="tradeNo" label="交易号" min-width="220" />
       <el-table-column prop="amount" label="金额" min-width="120">
         <template #default="{ row }">
-          ¥{{ Number(row.amount).toFixed(2) }}
+          ¥{{ (Number(row.amount) / 100).toFixed(2) }}
         </template>
       </el-table-column>
       <el-table-column prop="payMethod" label="支付方式" min-width="120" />

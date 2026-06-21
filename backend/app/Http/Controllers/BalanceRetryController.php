@@ -78,12 +78,25 @@ class BalanceRetryController extends Controller
             return response()->json(['message' => '重试任务状态不正确'], 400);
         }
 
+        $order = $balanceRetry->order;
+
+        if (!$order->isRetryable()) {
+            $balanceRetry->update([
+                'status' => 3,
+                'fail_reason' => '订单已达最大重试次数',
+            ]);
+            $order->update(['status' => 'failed']);
+            return response()->json(['message' => '订单已达最大重试次数'], 400);
+        }
+
         if ($balanceRetry->retry_count >= $balanceRetry->max_retry) {
             $balanceRetry->update(['status' => 3, 'fail_reason' => '已达到最大重试次数']);
+            $order->update(['status' => 'failed']);
             return response()->json(['message' => '已达到最大重试次数'], 400);
         }
 
-        \App\Jobs\BalanceRetryJob::dispatch($balanceRetry->order);
+        $balanceRetry->update(['status' => 1]);
+        \App\Jobs\BalanceRetryJob::dispatch($order);
 
         return response()->json(['message' => '已加入重试队列']);
     }

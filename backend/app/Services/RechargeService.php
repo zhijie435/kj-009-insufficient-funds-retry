@@ -79,6 +79,19 @@ class RechargeService
         foreach ($orders as $order) {
             if (!$order->isRetryable()) {
                 $result['failed']++;
+
+                $order->update(['status' => 'failed']);
+
+                $balanceRetry = $order->balanceRetries()
+                    ->whereIn('status', [0, 1])
+                    ->first();
+                if ($balanceRetry) {
+                    $balanceRetry->update([
+                        'status' => 3,
+                        'fail_reason' => '已达到最大重试次数',
+                    ]);
+                }
+
                 $result['orders'][] = [
                     'order_id' => $order->id,
                     'order_no' => $order->order_no,

@@ -59,6 +59,25 @@ class Order extends Model
             && $this->retry_count < $this->max_retries;
     }
 
+    public function getStatusTextAttribute(): string
+    {
+        $statuses = [
+            'pending' => '待支付',
+            'paid' => '已支付',
+            'insufficient_balance' => '余额不足待重试',
+            'failed' => '支付失败',
+            'cancelled' => '已取消',
+        ];
+        return $statuses[$this->status] ?? '未知';
+    }
+
+    public function toArray()
+    {
+        $array = parent::toArray();
+        $array['status_text'] = $this->status_text;
+        return $array;
+    }
+
     public static function generateOrderNo(): string
     {
         return 'ORD' . date('YmdHis') . str_pad(random_int(0, 9999), 4, '0', STR_PAD_LEFT);

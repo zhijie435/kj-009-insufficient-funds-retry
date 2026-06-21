@@ -45,13 +45,17 @@ class OrderService
                 ]);
                 break;
             case 'still_insufficient':
+                $nextRetryMinutes = min(pow(2, $order->retry_count) * 5, 60);
                 $retry->update([
+                    'status' => 0,
                     'retry_count' => $order->retry_count,
                     'current_balance' => $wallet->balance,
                     'last_retry_at' => now(),
-                    'next_retry_at' => now()->addMinutes(5),
+                    'next_retry_at' => now()->addMinutes($nextRetryMinutes),
                     'fail_reason' => $order->fail_reason,
                 ]);
+                \App\Jobs\BalanceRetryJob::dispatch($order)
+                    ->delay(now()->addMinutes($nextRetryMinutes));
                 break;
         }
     }
