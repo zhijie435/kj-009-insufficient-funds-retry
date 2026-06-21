@@ -23,23 +23,63 @@ const showRetryResult = (retryResult) => {
         return
     }
     const { total, success, still_insufficient, failed, orders } = retryResult
-    const orderDetails = orders.map(o => {
-        const statusText = o.status === 'paid' ? '✓ 支付成功'
-            : o.status === 'insufficient_balance' ? '⚠ 余额仍不足'
-            : o.status === 'not_retryable' ? '✗ 不可重试'
-            : '✗ 处理失败'
-        return `  ${statusText} - ${o.title} (${(o.amount / 100).toFixed(2)}元)`
-    }).join('\n')
 
-    const summary = `自动处理 ${total} 笔余额不足订单：\n`
-        + `  ✓ 支付成功: ${success}\n`
-        + `  ⚠ 余额仍不足: ${still_insufficient}\n`
-        + `  ✗ 处理失败: ${failed}\n\n`
-        + `详情：\n${orderDetails}`
+    const statusIcon = (s) => {
+        const map = {
+            paid: '✅',
+            insufficient_balance: '⚠️',
+            not_retryable: '⛔',
+            error: '❌',
+        }
+        return map[s] || '❌'
+    }
+    const statusLabel = (s) => {
+        const map = {
+            paid: '支付成功',
+            insufficient_balance: '余额仍不足',
+            not_retryable: '不可重试',
+            error: '处理失败',
+        }
+        return map[s] || '处理失败'
+    }
 
-    ElMessageBox.alert(summary, '充值后自动重试结果', {
+    const orderRows = orders.map(o =>
+        `<tr>
+            <td style="padding:6px 10px;border-bottom:1px solid #ebeef5;">${o.order_no || '-'}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #ebeef5;">${o.title || '-'}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #ebeef5;text-align:right;">${(o.amount / 100).toFixed(2)} 元</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #ebeef5;">${statusIcon(o.status)} ${statusLabel(o.status)}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #ebeef5;color:#909399;">${o.message || ''}</td>
+        </tr>`
+    ).join('')
+
+    const html = `
+        <div style="margin-bottom:14px;font-size:14px;">
+            自动处理 <b>${total}</b> 笔余额不足订单：
+        </div>
+        <div style="margin-bottom:16px;font-size:13px;line-height:1.8;">
+            <span style="color:#67c23a;">✅ 支付成功: ${success}</span>&emsp;
+            <span style="color:#e6a23c;">⚠️ 余额仍不足: ${still_insufficient}</span>&emsp;
+            <span style="color:#f56c6c;">❌ 处理失败: ${failed}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+                <tr style="background:#f5f7fa;">
+                    <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ebeef5;">订单号</th>
+                    <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ebeef5;">商品</th>
+                    <th style="padding:8px 10px;text-align:right;border-bottom:2px solid #ebeef5;">金额</th>
+                    <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ebeef5;">状态</th>
+                    <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #ebeef5;">说明</th>
+                </tr>
+            </thead>
+            <tbody>${orderRows}</tbody>
+        </table>
+    `
+
+    ElMessageBox.alert(html, '充值后自动重试结果', {
         confirmButtonText: '好的',
-        dangerouslyUseHTMLString: false,
+        dangerouslyUseHTMLString: true,
+        customClass: 'retry-result-dialog',
     })
 }
 
@@ -156,3 +196,14 @@ onMounted(() => fetchRecharges())
     </el-card>
   </div>
 </template>
+
+<style>
+.retry-result-dialog {
+    max-width: 720px;
+    width: 90vw;
+}
+.retry-result-dialog .el-message-box__message {
+    max-height: 50vh;
+    overflow-y: auto;
+}
+</style>
