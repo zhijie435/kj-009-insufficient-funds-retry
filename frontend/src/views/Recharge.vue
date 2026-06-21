@@ -18,6 +18,31 @@ const statusMap = {
 const quickAmounts = [1000, 5000, 10000, 50000, 100000]
 const customAmount = ref('')
 
+const showRetryResult = (retryResult) => {
+    if (!retryResult || retryResult.total === 0) {
+        return
+    }
+    const { total, success, still_insufficient, failed, orders } = retryResult
+    const orderDetails = orders.map(o => {
+        const statusText = o.status === 'paid' ? '✓ 支付成功'
+            : o.status === 'insufficient_balance' ? '⚠ 余额仍不足'
+            : o.status === 'not_retryable' ? '✗ 不可重试'
+            : '✗ 处理失败'
+        return `  ${statusText} - ${o.title} (${(o.amount / 100).toFixed(2)}元)`
+    }).join('\n')
+
+    const summary = `自动处理 ${total} 笔余额不足订单：\n`
+        + `  ✓ 支付成功: ${success}\n`
+        + `  ⚠ 余额仍不足: ${still_insufficient}\n`
+        + `  ✗ 处理失败: ${failed}\n\n`
+        + `详情：\n${orderDetails}`
+
+    ElMessageBox.alert(summary, '充值后自动重试结果', {
+        confirmButtonText: '好的',
+        dangerouslyUseHTMLString: false,
+    })
+}
+
 const fetchRecharges = async (page = 1) => {
     loading.value = true
     try {
@@ -35,17 +60,20 @@ const fetchRecharges = async (page = 1) => {
 const handleRecharge = async (amount) => {
     try {
         await ElMessageBox.confirm(
-            `确认充值 ${formatAmount(amount)} 元？`,
+            `确认充值 ${formatAmount(amount)} 元？\n充值成功后将自动重试您所有余额不足的订单`,
             '充值确认',
-            { confirmButtonText: '确认', cancelButtonText: '取消', type: 'info' }
+            { confirmButtonText: '确认充值', cancelButtonText: '取消', type: 'info' }
         )
     } catch {
         return
     }
 
     try {
-        await rechargeApi.create({ amount, payment_method: 'manual' })
-        ElMessage.success('充值成功')
+        const res = await rechargeApi.create({ amount, payment_method: 'manual' })
+        ElMessage.success(res.data.message)
+        if (res.data.retry_result) {
+            showRetryResult(res.data.retry_result)
+        }
         emit('wallet-updated')
         fetchRecharges(pagination.value.current_page)
     } catch {}

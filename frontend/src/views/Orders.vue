@@ -67,21 +67,52 @@ const handleRetry = async (order) => {
     retryLoading.value[order.id] = false
 }
 
+const showRetryResult = (retryResult) => {
+    if (!retryResult || retryResult.total === 0) {
+        return
+    }
+    const { total, success, still_insufficient, failed, orders } = retryResult
+    const orderDetails = orders.map(o => {
+        const statusText = o.status === 'paid' ? '✓ 支付成功'
+            : o.status === 'insufficient_balance' ? '⚠ 余额仍不足'
+            : o.status === 'not_retryable' ? '✗ 不可重试'
+            : '✗ 处理失败'
+        return `  ${statusText} - ${o.title} (${(o.amount / 100).toFixed(2)}元)`
+    }).join('\n')
+
+    const summary = `自动处理 ${total} 笔余额不足订单：\n`
+        + `  ✓ 支付成功: ${success}\n`
+        + `  ⚠ 余额仍不足: ${still_insufficient}\n`
+        + `  ✗ 处理失败: ${failed}\n\n`
+        + `详情：\n${orderDetails}`
+
+    ElMessageBox.alert(summary, '充值后自动重试结果', {
+        confirmButtonText: '好的',
+        dangerouslyUseHTMLString: false,
+    })
+}
+
 const handleRecharge = (order) => {
+    const needed = order.amount - (window.__currentWalletBalance || 0)
+    const suggestAmount = Math.max(order.amount, needed > 0 ? needed : order.amount)
     ElMessageBox.prompt(
-        `订单「${order.title}」余额不足，请输入充值金额（元）`,
-        '快速充值',
+        `订单「${order.title}」余额不足，需要 ${formatAmount(order.amount)} 元\n建议充值 ${formatAmount(suggestAmount)} 元或更多，请输入充值金额（元）`,
+        '快速充值并自动重试',
         {
-            confirmButtonText: '充值',
+            confirmButtonText: '充值并重试',
             cancelButtonText: '取消',
             inputPattern: /^\d+(\.\d{1,2})?$/,
             inputErrorMessage: '请输入有效金额',
+            inputValue: formatAmount(suggestAmount),
         }
     ).then(async ({ value }) => {
         const amount = Math.round(parseFloat(value) * 100)
         try {
-            await rechargeApi.create({ amount, payment_method: 'manual' })
-            ElMessage.success('充值成功，请重试订单')
+            const res = await rechargeApi.create({ amount, payment_method: 'manual' })
+            ElMessage.success(res.data.message)
+            if (res.data.retry_result) {
+                showRetryResult(res.data.retry_result)
+            }
             emit('wallet-updated')
             fetchOrders(pagination.value.current_page)
         } catch {}

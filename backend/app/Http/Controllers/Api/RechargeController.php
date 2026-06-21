@@ -28,15 +28,32 @@ class RechargeController extends Controller
     public function store(RechargeStoreRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $transaction = $this->rechargeService->createRecharge(
+        $result = $this->rechargeService->createRecharge(
             $request->user(),
             $validated['amount'],
             $validated['payment_method'] ?? 'manual'
         );
 
+        $transaction = $result['transaction'];
+        $retryResult = $result['retry_result'];
+
+        $message = '充值成功';
+        if ($retryResult['total'] > 0) {
+            if ($retryResult['success'] > 0 && $retryResult['still_insufficient'] === 0) {
+                $message = "充值成功，已自动完成 {$retryResult['success']} 笔订单支付";
+            } elseif ($retryResult['success'] > 0 && $retryResult['still_insufficient'] > 0) {
+                $message = "充值成功，{$retryResult['success']} 笔订单已支付，{$retryResult['still_insufficient']} 笔订单余额仍不足";
+            } elseif ($retryResult['still_insufficient'] > 0) {
+                $message = "充值成功，{$retryResult['still_insufficient']} 笔订单余额仍不足，请继续充值";
+            } else {
+                $message = "充值成功，自动处理 {$retryResult['total']} 笔订单";
+            }
+        }
+
         return response()->json([
-            'message' => '充值成功',
+            'message' => $message,
             'data' => $transaction,
+            'retry_result' => $retryResult,
         ], 201);
     }
 
