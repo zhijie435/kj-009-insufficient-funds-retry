@@ -113,7 +113,7 @@ onMounted(() => {
             size="small"
             :icon="RefreshRight"
             @click="handleManualRetry(row)"
-            :disabled="row.statusCode === 2 || row.statusCode === 3 || row.statusCode === 4"
+            :disabled="row.statusCode === 1 || row.statusCode === 2 || row.statusCode === 3 || row.statusCode === 4"
           >
             手动重试
           </el-button>
@@ -126,7 +126,7 @@ onMounted(() => {
                 type="danger"
                 size="small"
                 :icon="Close"
-                :disabled="row.statusCode === 2 || row.statusCode === 3 || row.statusCode === 4"
+                :disabled="row.statusCode === 1 || row.statusCode === 2 || row.statusCode === 3 || row.statusCode === 4"
               >
                 取消
               </el-button>

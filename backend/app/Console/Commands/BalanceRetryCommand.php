@@ -56,7 +56,7 @@ class BalanceRetryCommand extends Command
                 BalanceRetryJob::dispatchSync($retry->order);
                 $processed++;
 
-                if ($retry->fresh()->status == 1) {
+                if ($retry->fresh()->status == 2) {
                     $success++;
                     $this->info("✓ 订单 {$retry->order->order_no} 处理成功");
                 } else {

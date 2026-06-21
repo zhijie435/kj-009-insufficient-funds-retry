@@ -34,10 +34,10 @@ class BalanceRetryJob implements ShouldQueue
 
         if ($balanceRetry->retry_count >= $balanceRetry->max_retry) {
             $balanceRetry->update([
-                'status' => 2,
+                'status' => 3,
                 'fail_reason' => '已达到最大重试次数',
             ]);
-            $order->update(['status' => 3]);
+            $order->update(['status' => 'failed']);
             Log::info("Max retry reached for order {$order->id}");
             return;
         }
@@ -66,7 +66,7 @@ class BalanceRetryJob implements ShouldQueue
                     'paid_at' => now(),
                 ]);
 
-                $balanceRetry->update(['status' => 1]);
+                $balanceRetry->update(['status' => 2]);
             });
 
             Log::info("Balance retry success for order {$order->id}");

@@ -79,7 +79,7 @@ class BalanceRetryController extends Controller
         }
 
         if ($balanceRetry->retry_count >= $balanceRetry->max_retry) {
-            $balanceRetry->update(['status' => 2, 'fail_reason' => '已达到最大重试次数']);
+            $balanceRetry->update(['status' => 3, 'fail_reason' => '已达到最大重试次数']);
             return response()->json(['message' => '已达到最大重试次数'], 400);
         }
 
