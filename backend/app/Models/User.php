@@ -40,4 +40,16 @@ class User extends Authenticatable
     {
         return $this->hasMany(RechargeTransaction::class);
     }
+
+    public function balanceRetries(): HasMany
+    {
+        return $this->hasMany(BalanceRetry::class);
+    }
+
+    public function isAdmin(): bool
+    {
+        return in_array($this->email, [
+            'admin@example.com',
+        ], true) || $this->id === 1;
+    }
 }

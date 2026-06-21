@@ -11,7 +11,9 @@ class WalletController extends Controller
 {
     public function __construct(
         private WalletService $walletService,
-    ) {}
+    ) {
+        $this->middleware('auth:sanctum');
+    }
 
     public function show(Request $request): JsonResponse
     {
@@ -28,11 +30,14 @@ class WalletController extends Controller
 
     public function transactions(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'type' => 'nullable|string|in:deposit,deduct',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
         $wallet = $this->walletService->getOrCreateWallet($request->user());
 
-        $transactions = $wallet->transactions()
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->input('per_page', 15));
+        $transactions = $this->walletService->getTransactions($wallet, $validated);
 
         return response()->json($transactions);
     }

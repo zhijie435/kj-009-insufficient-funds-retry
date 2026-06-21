@@ -2,23 +2,28 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
+use App\Models\BalanceRetry;
+use App\Models\Order;
+use App\Models\RechargeTransaction;
+use App\Policies\BalanceRetryPolicy;
+use App\Policies\OrderPolicy;
+use App\Policies\RechargeTransactionPolicy;
+use Illuminate\Foundation\Support\Providers\AuthServiceProvider;
 
-class AppServiceProvider extends ServiceProvider
+class AppServiceProvider extends AuthServiceProvider
 {
-    /**
-     * Register any application services.
-     */
+    protected $policies = [
+        Order::class => OrderPolicy::class,
+        BalanceRetry::class => BalanceRetryPolicy::class,
+        RechargeTransaction::class => RechargeTransactionPolicy::class,
+    ];
+
     public function register(): void
     {
-        //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
-        //
+        $this->registerPolicies();
     }
 }

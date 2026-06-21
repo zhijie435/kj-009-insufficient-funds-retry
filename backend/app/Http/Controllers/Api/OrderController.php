@@ -2,24 +2,38 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\OrderStatus;
+use App\Exceptions\OrderException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OrderStoreRequest;
 use App\Models\Order;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
     public function __construct(
         private OrderService $orderService,
-    ) {}
+    ) {
+        $this->middleware('auth:sanctum');
+    }
 
     public function index(Request $request): JsonResponse
     {
+        Gate::authorize('viewAny', Order::class);
+
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', Rule::enum(OrderStatus::class)],
+            'search' => 'nullable|string|max:255',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
         $orders = $this->orderService->getUserOrders(
             $request->user(),
-            $request->only(['status', 'search', 'per_page'])
+            $validated
         );
 
         return response()->json($orders);
@@ -27,6 +41,8 @@ class OrderController extends Controller
 
     public function store(OrderStoreRequest $request): JsonResponse
     {
+        Gate::authorize('create', Order::class);
+
         $validated = $request->validated();
         $order = $this->orderService->createOrder(
             $request->user(),
@@ -34,7 +50,7 @@ class OrderController extends Controller
             $validated['amount']
         );
 
-        $message = $order->status === 'insufficient_balance'
+        $message = $order->status === OrderStatus::INSUFFICIENT_BALANCE
             ? '余额不足，订单待充值后重试'
             : '订单创建成功';
 
@@ -46,9 +62,7 @@ class OrderController extends Controller
 
     public function show(Request $request, Order $order): JsonResponse
     {
-        if ($order->user_id !== $request->user()->id) {
-            abort(403);
-        }
+        Gate::authorize('view', $order);
 
         return response()->json([
             'data' => $order,
@@ -57,14 +71,12 @@ class OrderController extends Controller
 
     public function retry(Request $request, Order $order): JsonResponse
     {
-        if ($order->user_id !== $request->user()->id) {
-            abort(403);
-        }
+        Gate::authorize('retry', $order);
 
         try {
             $order = $this->orderService->retryOrder($order);
 
-            $message = $order->status === 'paid'
+            $message = $order->status === OrderStatus::PAID
                 ? '重试成功，订单已支付'
                 : '余额仍不足，请充值后重试';
 
@@ -72,9 +84,10 @@ class OrderController extends Controller
                 'message' => $message,
                 'data' => $order,
             ]);
-        } catch (\RuntimeException $e) {
+        } catch (OrderException $e) {
             return response()->json([
                 'message' => $e->getMessage(),
+                'code' => $e->getCode(),
             ], 422);
         }
     }
