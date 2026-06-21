@@ -22,6 +22,7 @@ const fetchWallet = async () => {
     try {
         const res = await walletApi.show()
         wallet.value = res.data.data
+        window.__currentWalletBalance = res.data.data.available_balance || 0
     } catch {}
 }
 
