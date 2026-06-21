@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BalanceRetry;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,49 @@ class OrderService
     public function __construct(
         private WalletService $walletService,
     ) {}
+
+    private function syncBalanceRetry(Order $order, string $event): void
+    {
+        $retry = $order->balanceRetries()
+            ->whereIn('status', [0, 1])
+            ->first();
+
+        if (!$retry) {
+            return;
+        }
+
+        $wallet = $this->walletService->getOrCreateWallet($order->user);
+
+        switch ($event) {
+            case 'paid':
+                $retry->update([
+                    'status' => 2,
+                    'retry_count' => $order->retry_count,
+                    'current_balance' => $wallet->balance,
+                    'last_retry_at' => now(),
+                    'fail_reason' => null,
+                ]);
+                break;
+            case 'failed':
+                $retry->update([
+                    'status' => 3,
+                    'retry_count' => $order->retry_count,
+                    'current_balance' => $wallet->balance,
+                    'last_retry_at' => now(),
+                    'fail_reason' => $order->fail_reason,
+                ]);
+                break;
+            case 'still_insufficient':
+                $retry->update([
+                    'retry_count' => $order->retry_count,
+                    'current_balance' => $wallet->balance,
+                    'last_retry_at' => now(),
+                    'next_retry_at' => now()->addMinutes(5),
+                    'fail_reason' => $order->fail_reason,
+                ]);
+                break;
+        }
+    }
 
     public function createOrder(User $user, string $title, int $amount, int $maxRetries = 3): Order
     {
@@ -41,6 +85,17 @@ class OrderService
                     'status' => 'insufficient_balance',
                     'failed_at' => now(),
                     'fail_reason' => $e->getMessage(),
+                ]);
+
+                BalanceRetry::create([
+                    'order_id' => $order->id,
+                    'user_id' => $user->id,
+                    'required_amount' => $amount,
+                    'current_balance' => $wallet->balance,
+                    'retry_count' => 0,
+                    'max_retry' => $maxRetries,
+                    'status' => 0,
+                    'next_retry_at' => now()->addMinutes(5),
                 ]);
             }
 
@@ -74,6 +129,8 @@ class OrderService
                     'status' => 'paid',
                     'fail_reason' => null,
                 ]);
+
+                $this->syncBalanceRetry($order, 'paid');
             } catch (\RuntimeException $e) {
                 $order->update([
                     'fail_reason' => $e->getMessage() . " (第{$order->retry_count}次重试)",
@@ -81,6 +138,9 @@ class OrderService
 
                 if ($order->retry_count >= $order->max_retries) {
                     $order->update(['status' => 'failed']);
+                    $this->syncBalanceRetry($order, 'failed');
+                } else {
+                    $this->syncBalanceRetry($order, 'still_insufficient');
                 }
             }
 

@@ -3,11 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Services\OrderService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class OrderController extends Controller
 {
+    public function __construct(
+        private OrderService $orderService,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = Order::with(['user', 'rechargeRecords', 'balanceRetries']);
@@ -68,50 +73,20 @@ class OrderController extends Controller
 
     public function pay(Order $order): JsonResponse
     {
-        if ($order->status !== 0) {
+        if ($order->status !== 'pending' && $order->status !== 'insufficient_balance') {
             return response()->json(['message' => '订单状态不正确'], 400);
         }
 
-        $user = $order->user;
+        try {
+            $order = $this->orderService->retryOrder($order);
 
-        if ($user->balance < $order->amount) {
-            $order->increment('retry_count');
-            $order->status = 2;
-            $order->retry_at = now()->addMinutes(5);
-            $order->save();
+            if ($order->status === 'paid') {
+                return response()->json(['message' => '支付成功', 'order' => $order]);
+            }
 
-            \App\Models\BalanceRetry::create([
-                'order_id' => $order->id,
-                'user_id' => $user->id,
-                'required_amount' => $order->amount,
-                'current_balance' => $user->balance,
-                'retry_count' => 0,
-                'max_retry' => 5,
-                'status' => 0,
-                'next_retry_at' => now()->addMinutes(5),
-            ]);
-
-            \App\Jobs\BalanceRetryJob::dispatch($order)->delay(now()->addMinutes(5));
-
-            return response()->json(['message' => '余额不足，已加入重试队列'], 400);
+            return response()->json(['message' => '余额不足，已记录重试', 'order' => $order], 400);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        \DB::transaction(function () use ($order, $user) {
-            $user->decrement('balance', $order->amount);
-            $order->status = 1;
-            $order->save();
-
-            \App\Models\RechargeRecord::create([
-                'user_id' => $user->id,
-                'order_id' => $order->id,
-                'transaction_no' => 'TXN' . date('YmdHis') . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT),
-                'amount' => $order->amount,
-                'pay_type' => 1,
-                'status' => 1,
-                'paid_at' => now(),
-            ]);
-        });
-
-        return response()->json(['message' => '支付成功', 'order' => $order->fresh()]);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Order extends Model
@@ -40,6 +41,16 @@ class Order extends Model
     public function walletTransactions(): MorphMany
     {
         return $this->morphMany(WalletTransaction::class, 'source');
+    }
+
+    public function balanceRetries(): HasMany
+    {
+        return $this->hasMany(BalanceRetry::class);
+    }
+
+    public function rechargeRecords(): HasMany
+    {
+        return $this->hasMany(RechargeRecord::class);
     }
 
     public function isRetryable(): bool

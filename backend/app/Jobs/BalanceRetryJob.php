@@ -3,12 +3,13 @@
 namespace App\Jobs;
 
 use App\Models\Order;
+use App\Services\OrderService;
+use App\Services\WalletService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class BalanceRetryJob implements ShouldQueue
@@ -21,11 +22,10 @@ class BalanceRetryJob implements ShouldQueue
         protected Order $order
     ) {}
 
-    public function handle(): void
+    public function handle(OrderService $orderService, WalletService $walletService): void
     {
         $order = $this->order->fresh();
-        $user = $order->user;
-        $balanceRetry = $order->balanceRetries()->where('status', 0)->first();
+        $balanceRetry = $order->balanceRetries()->whereIn('status', [0, 1])->first();
 
         if (!$balanceRetry) {
             Log::info("BalanceRetry not found for order {$order->id}");
@@ -42,40 +42,26 @@ class BalanceRetryJob implements ShouldQueue
             return;
         }
 
-        $balanceRetry->increment('retry_count');
-        $balanceRetry->update([
-            'last_retry_at' => now(),
-            'current_balance' => $user->balance,
-        ]);
+        $wallet = $walletService->getOrCreateWallet($order->user);
 
-        if ($user->balance >= $order->amount) {
-            DB::transaction(function () use ($order, $user, $balanceRetry) {
-                $user->decrement('balance', $order->amount);
-                $order->update([
-                    'status' => 1,
-                    'retry_count' => $order->retry_count + 1,
-                ]);
-
-                \App\Models\RechargeRecord::create([
-                    'user_id' => $user->id,
-                    'order_id' => $order->id,
-                    'transaction_no' => 'TXN' . date('YmdHis') . str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT),
-                    'amount' => $order->amount,
-                    'pay_type' => 1,
-                    'status' => 1,
-                    'paid_at' => now(),
-                ]);
-
-                $balanceRetry->update(['status' => 2]);
-            });
-
-            Log::info("Balance retry success for order {$order->id}");
+        if ($walletService->hasSufficientBalance($wallet, $order->amount)) {
+            try {
+                $retriedOrder = $orderService->retryOrder($order);
+                Log::info("Balance retry success for order {$order->id}, status: {$retriedOrder->status}");
+            } catch (\Exception $e) {
+                Log::error("Balance retry failed for order {$order->id}: {$e->getMessage()}");
+            }
         } else {
+            $balanceRetry->increment('retry_count');
+            $balanceRetry->update([
+                'last_retry_at' => now(),
+                'current_balance' => $wallet->balance,
+            ]);
+
             $nextRetryMinutes = min(pow(2, $balanceRetry->retry_count) * 5, 60);
             $balanceRetry->update([
                 'next_retry_at' => now()->addMinutes($nextRetryMinutes),
             ]);
-            $order->update(['retry_at' => now()->addMinutes($nextRetryMinutes)]);
 
             self::dispatch($order)->delay(now()->addMinutes($nextRetryMinutes));
 

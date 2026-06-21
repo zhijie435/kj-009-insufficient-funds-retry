@@ -111,7 +111,10 @@ class BalanceRetryController extends Controller
             'fail_reason' => '手动取消',
         ]);
 
-        $balanceRetry->order->update(['status' => 'failed']);
+        $balanceRetry->order->update([
+            'status' => 'failed',
+            'fail_reason' => '重试任务已手动取消',
+        ]);
 
         return response()->json(['message' => '已取消重试']);
     }
